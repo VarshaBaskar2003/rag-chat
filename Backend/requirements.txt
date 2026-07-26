@@ -1,0 +1,18 @@
+# Web framework
+fastapi==0.115.0
+uvicorn==0.30.6
+python-multipart==0.0.9
+
+# RAG pipeline
+chromadb==0.5.15
+sentence-transformers==3.0.1
+langchain-text-splitters==0.2.4
+
+# PDF processing
+pymupdf==1.24.10
+
+# LLM
+groq==0.11.0
+
+# Utilities
+python-dotenv==1.0.1 

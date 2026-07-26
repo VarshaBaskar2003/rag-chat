@@ -1,0 +1,90 @@
+.file-upload {
+  padding: 12px;
+  border-bottom: 1px solid #222;
+}
+
+.file-upload__label {
+  color: #aaa;
+  font-size: 11px;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-weight: 600;
+}
+
+.file-upload__dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px;
+  border: 1.5px dashed #333;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: transparent;
+}
+
+.file-upload__dropzone:hover {
+  border-color: #7c6af7;
+  background: #1a1a2e;
+}
+
+.file-upload__dropzone--active {
+  border-color: #7c6af7;
+  background: #1a1a2e;
+}
+
+.file-upload__dropzone--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.file-upload__input {
+  display: none; /* hidden — label acts as the clickable area */
+}
+
+.file-upload__icon {
+  font-size: 20px;
+}
+
+.file-upload__hint {
+  color: #666;
+  font-size: 12px;
+  text-align: center;
+}
+
+/* Status messages */
+.file-upload__message {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  animation: fade-in 0.2s ease;
+}
+
+.file-upload__message--success {
+  background: #1a2e1a;
+  color: #6fcf6f;
+  border: 1px solid #2a4a2a;
+}
+
+.file-upload__message--error {
+  background: #2e1a1a;
+  color: #cf6f6f;
+  border: 1px solid #4a2a2a;
+}
+
+.file-upload__message--loading {
+  background: #1a1a2e;
+  color: #7c6af7;
+  border: 1px solid #2a2a4a;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

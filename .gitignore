@@ -1,0 +1,26 @@
+# Environment
+.env
+.venv/
+__pycache__/
+*.pyc
+
+# Database and storage
+chroma_data/
+uploads/
+chat_history.db
+
+# Node
+node_modules/
+frontend/dist/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+dist/
+build/

@@ -1,0 +1,165 @@
+.doc-list-container {
+  padding: 12px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.doc-list-label {
+  color: #aaa;
+  font-size: 11px;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-weight: 600;
+}
+
+.doc-list-empty {
+  color: #444;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 8px 0;
+}
+
+/* ── Document item ── */
+.doc-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-bottom: 2px;
+  border-left: 3px solid transparent;
+  background: transparent;
+  transition: background 0.15s;
+  position: relative;
+}
+
+.doc-item:hover {
+  background: #1e1e2e;
+}
+
+.doc-item--active {
+  background: #2a2a3a;
+  border-left: 3px solid #7c6af7;
+}
+
+.doc-icon {
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.doc-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.doc-name {
+  color: #ddd;
+  font-size: 13px;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.doc-chunks {
+  color: #555;
+  font-size: 11px;
+  margin: 2px 0 0 0;
+}
+
+/* ── Three dot menu ── */
+.doc-menu-wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.doc-menu-button {
+  background: transparent;
+  border: none;
+  color: #555;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+
+.doc-menu-button:hover {
+  background: #2a2a3a;
+  color: #aaa;
+}
+
+/* ── Dropdown ── */
+.doc-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  background: #1a1a2e;
+  border: 1px solid #2a2a4a;
+  border-radius: 8px;
+  z-index: 200;
+  min-width: 150px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  animation: dropdown-appear 0.1s ease;
+}
+
+@keyframes dropdown-appear {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.doc-dropdown__item {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: #ccc;
+  padding: 10px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background 0.15s;
+  font-family: inherit;
+}
+
+.doc-dropdown__item:hover {
+  background: #2a2a3a;
+  color: #fff;
+}
+
+.doc-dropdown__item--danger {
+  color: #ff6b6b;
+}
+
+.doc-dropdown__item--danger:hover {
+  background: #2a1a1a;
+  color: #ff4444;
+}
+
+.doc-dropdown__icon {
+  font-size: 14px;
+  width: 18px;
+  text-align: center;
+}
+
+.doc-dropdown__divider {
+  height: 1px;
+  background: #2a2a4a;
+  margin: 4px 0;
+}

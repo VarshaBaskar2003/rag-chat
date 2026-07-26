@@ -1,0 +1,46 @@
+.header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #222;
+  font-size: 14px;
+  color: #888;
+  background: #13131f;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.header__inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.header__doc-name {
+  color: #7c6af7;
+}
+
+.header__count {
+  color: #555;
+  margin-left: 10px;
+}
+
+.header__placeholder {
+  color: #555;
+}
+
+.header__clear-btn {
+  background: transparent;
+  border: 1px solid #333;
+  color: #666;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.header__clear-btn:hover {
+  border-color: #555;
+  color: #aaa;
+}
