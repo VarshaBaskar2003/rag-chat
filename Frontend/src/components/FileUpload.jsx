@@ -1,15 +1,15 @@
 import { useState, useEffect } from "react";
-import { uploadPDF } from "../api/ragApi";
+import { uploadPDF, pingServer } from "../api/ragApi";
 import "./FileUpload.css";
 
 export default function FileUpload({ onUploadSuccess }) {
   const [uploading, setUploading] = useState(false);
-  const [message, setMessage] = useState(null); // { text, type: "success"|"error" }
+  const [message, setMessage] = useState(null);
   const [dragOver, setDragOver] = useState(false);
 
   // Auto-hide message after 4 seconds
   useEffect(() => {
-    if (message) {
+    if (message?.type === "success") {
       const timer = setTimeout(() => setMessage(null), 4000);
       return () => clearTimeout(timer);
     }
@@ -24,18 +24,30 @@ export default function FileUpload({ onUploadSuccess }) {
     }
 
     setUploading(true);
-    setMessage({ text: "Indexing your document...", type: "loading" });
+
+    // Step 1 — wake the server first
+    setMessage({
+      text: "⏳ Waking up server... (first request may take 60s)",
+      type: "loading",
+    });
+    await pingServer();
+
+    // Step 2 — now upload
+    setMessage({
+      text: "📤 Uploading and indexing PDF...",
+      type: "loading",
+    });
 
     try {
       const result = await uploadPDF(file);
       setMessage({
-        text: `✅ Indexed ${result.chunk_count} chunks`,
+        text: `✅ Indexed ${result.chunk_count} chunks successfully`,
         type: "success",
       });
       onUploadSuccess(result.collection_name);
     } catch (error) {
       setMessage({
-        text: `❌ ${error.response?.data?.detail || "Upload failed"}`,
+        text: `❌ ${error.response?.data?.detail || "Upload failed. Try again."}`,
         type: "error",
       });
     } finally {
@@ -45,10 +57,9 @@ export default function FileUpload({ onUploadSuccess }) {
 
   const handleFileChange = (e) => {
     processFile(e.target.files[0]);
-    e.target.value = ""; // reset input so same file can be re-uploaded
+    e.target.value = "";
   };
 
-  // Drag and drop handlers
   const handleDragOver = (e) => {
     e.preventDefault();
     setDragOver(true);
@@ -66,9 +77,10 @@ export default function FileUpload({ onUploadSuccess }) {
     <div className="file-upload">
       <p className="file-upload__label">Upload a PDF</p>
 
-      {/* Drag and drop zone */}
       <label
-        className={`file-upload__dropzone ${dragOver ? "file-upload__dropzone--active" : ""} ${uploading ? "file-upload__dropzone--disabled" : ""}`}
+        className={`file-upload__dropzone 
+          ${dragOver ? "file-upload__dropzone--active" : ""} 
+          ${uploading ? "file-upload__dropzone--disabled" : ""}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -84,11 +96,10 @@ export default function FileUpload({ onUploadSuccess }) {
           {uploading ? "⏳" : "📎"}
         </span>
         <span className="file-upload__hint">
-          {uploading ? "Uploading..." : "Click or drag PDF here"}
+          {uploading ? "Please wait..." : "Click or drag PDF here"}
         </span>
       </label>
 
-      {/* Status message — auto disappears after 4s */}
       {message && (
         <div className={`file-upload__message file-upload__message--${message.type}`}>
           {message.text}

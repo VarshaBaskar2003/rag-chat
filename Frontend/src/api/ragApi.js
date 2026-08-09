@@ -1,12 +1,22 @@
 import axios from "axios";
 
-const API_BASE = "https://rag-chat-thku.onrender.com"
+const API_BASE = "https://rag-chat-thku.onrender.com";
+
+// Wake up Render server before making real requests
+export const pingServer = async () => {
+  try {
+    await axios.get(`${API_BASE}/`, { timeout: 60000 });
+  } catch (err) {
+    console.log("Server waking up...");
+  }
+};
 
 export const uploadPDF = async (file) => {
   const formData = new FormData();
   formData.append("file", file);
   const response = await axios.post(`${API_BASE}/upload`, formData, {
     headers: { "Content-Type": "multipart/form-data" },
+    timeout: 120000, // 2 minutes timeout for large PDFs
   });
   return response.data;
 };
@@ -15,12 +25,12 @@ export const queryDocument = async (question, collectionName) => {
   const response = await axios.post(`${API_BASE}/query`, {
     question: question,
     collection_name: collectionName,
-  });
+  }, { timeout: 120000 });
   return response.data;
 };
 
 export const getDocuments = async () => {
-  const response = await axios.get(`${API_BASE}/documents`);
+  const response = await axios.get(`${API_BASE}/documents`, { timeout: 60000 });
   return response.data;
 };
 
@@ -42,10 +52,14 @@ export const saveMessage = async (sessionId, collectionName, role, content, sour
 };
 
 export const loadHistory = async (sessionId, collectionName) => {
-  const response = await axios.get(`${API_BASE}/history/${sessionId}/${collectionName}`);
+  const response = await axios.get(
+    `${API_BASE}/history/${sessionId}/${collectionName}`
+  );
   return response.data;
 };
 
 export const clearHistoryDB = async (sessionId, collectionName) => {
-  await axios.delete(`${API_BASE}/history/${sessionId}/${collectionName}`);
+  await axios.delete(
+    `${API_BASE}/history/${sessionId}/${collectionName}`
+  );
 };
