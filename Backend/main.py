@@ -1,44 +1,47 @@
 import os
-import shutil
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from pipeline import index_pdf, rag_query, list_indexed_documents, chroma_client, filename_to_collection_name
 import json
-from sqlalchemy.orm import Session
-from fastapi import Depends
-from database import ChatMessage, get_db
+import shutil
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-# ── App setup ─────────────────────────────────────────────────────────────────
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+from database import ChatMessage, get_db
+from pipeline import (
+    index_pdf,
+    rag_query,
+    list_indexed_documents,
+    get_chroma_client,
+    filename_to_collection_name,
+)
+
+# ── App setup ──────────────────────────────────────────────────────────────────
 
 app = FastAPI(title="RAG API", version="1.0.0")
 
-
-# CORS — allows your React frontend (running on port 5173) to call this API
-# Without this, the browser will block all requests from the frontend
+# CORS — allows React frontend to call this API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=["*"],  # update to your Netlify URL in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Folder where uploaded PDFs are saved
+# Upload directory — uses absolute path so it works regardless of where
+# uvicorn is started from
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")    
+# Serve uploaded PDFs as static files
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
-# ── Request/Response models ───────────────────────────────────────────────────
-
-# Pydantic models define the shape of JSON requests and responses
-# FastAPI uses these for automatic validation and documentation
+# ── Pydantic models — define shape of requests and responses ──────────────────
 
 class QueryRequest(BaseModel):
-    question: str          # the user's question
-    collection_name: str   # which document to search in
+    question: str
+    collection_name: str
 
 class SourceChunk(BaseModel):
     text: str
@@ -53,34 +56,37 @@ class DocumentInfo(BaseModel):
     collection_name: str
     chunk_count: int
 
-# ── Routes ────────────────────────────────────────────────────────────────────
+class MessageIn(BaseModel):
+    session_id: str
+    collection_name: str
+    role: str
+    content: str
+    sources: list = []
+
+# ── Routes ─────────────────────────────────────────────────────────────────────
 
 @app.get("/")
 def root():
-    """Health check — visit http://localhost:8000 to confirm API is running."""
+    """Health check endpoint."""
     return {"status": "RAG API is running"}
 
 
 @app.post("/upload")
 async def upload_pdf(file: UploadFile = File(...)):
     """
-    Accepts a PDF file upload, saves it to disk, and indexes it into ChromaDB.
-    Returns the collection_name the frontend needs to send with future queries.
-
-    UploadFile = FastAPI's built-in file upload type
-    File(...) = this field is required (the ... means required in Pydantic)
+    Accepts a PDF upload, saves to disk, indexes into ChromaDB.
+    Returns collection_name for the frontend to use in queries.
     """
-    # Validate that the uploaded file is actually a PDF
     if not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported.")
 
-    # Save the uploaded file to the uploads/ folder
     file_path = os.path.join(UPLOAD_DIR, file.filename)
-    with open(file_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)  # copyfileobj streams the file to disk efficiently
 
-    # Index the PDF using our pipeline
-    # This runs: extract → chunk → embed → store in ChromaDB
+    # Save file to disk
+    with open(file_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    # Index into ChromaDB
     collection = index_pdf(file_path)
 
     return {
@@ -93,19 +99,16 @@ async def upload_pdf(file: UploadFile = File(...)):
 @app.post("/query", response_model=QueryResponse)
 def query_document(request: QueryRequest):
     """
-    Accepts a question and collection_name, runs RAG, returns answer + sources.
-    The frontend sends both the question and which document to search.
+    Runs HyDE + multi-query RAG and returns answer with source citations.
     """
-    # Validate the collection exists
     try:
-        collection = chroma_client.get_collection(name=request.collection_name)
+        collection = get_chroma_client().get_collection(name=request.collection_name)
     except Exception:
         raise HTTPException(
             status_code=404,
-            detail=f"Collection '{request.collection_name}' not found. Please upload the document first."
+            detail=f"Collection '{request.collection_name}' not found. Upload the document first."
         )
 
-    # Run the RAG pipeline
     result = rag_query(request.question, collection)
 
     return QueryResponse(
@@ -116,45 +119,35 @@ def query_document(request: QueryRequest):
 
 @app.get("/documents", response_model=list[DocumentInfo])
 def get_documents():
-    """
-    Returns a list of all indexed documents.
-    The frontend uses this to populate the document selector dropdown.
-    """
+    """Returns list of all indexed documents."""
     docs = list_indexed_documents()
     return [DocumentInfo(**d) for d in docs]
 
 
 @app.delete("/documents/{collection_name}")
 def delete_document(collection_name: str):
-    """
-    Deletes a document collection from ChromaDB.
-    Also removes the uploaded PDF from disk.
-    """
+    """Deletes a document collection from ChromaDB."""
     try:
-        chroma_client.delete_collection(name=collection_name)
+        get_chroma_client().delete_collection(name=collection_name)
     except Exception:
         raise HTTPException(status_code=404, detail="Collection not found.")
-
     return {"message": f"'{collection_name}' deleted successfully."}
 
-# Change this route
-@app.get("/files/list")  # was /uploads/list
+
+@app.get("/files/list")
 def list_uploads():
+    """Returns list of all uploaded PDF filenames for download feature."""
     if not os.path.exists(UPLOAD_DIR):
         return []
     files = [f for f in os.listdir(UPLOAD_DIR) if f.endswith(".pdf")]
     return files
-# ── Chat History Routes ────────────────────────────────────────────────────────
 
-class MessageIn(BaseModel):
-    session_id: str
-    collection_name: str
-    role: str
-    content: str
-    sources: list = []
+
+# ── Chat History Routes ────────────────────────────────────────────────────────
 
 @app.post("/history")
 def save_message(msg: MessageIn, db: Session = Depends(get_db)):
+    """Saves a chat message to SQLite."""
     db_msg = ChatMessage(
         session_id=msg.session_id,
         collection_name=msg.collection_name,
@@ -167,8 +160,10 @@ def save_message(msg: MessageIn, db: Session = Depends(get_db)):
     db.refresh(db_msg)
     return {"id": db_msg.id, "message": "Saved"}
 
+
 @app.get("/history/{session_id}/{collection_name}")
 def get_history(session_id: str, collection_name: str, db: Session = Depends(get_db)):
+    """Returns full chat history for a session + document."""
     messages = (
         db.query(ChatMessage)
         .filter(
@@ -189,8 +184,10 @@ def get_history(session_id: str, collection_name: str, db: Session = Depends(get
         for m in messages
     ]
 
+
 @app.delete("/history/{session_id}/{collection_name}")
 def clear_history(session_id: str, collection_name: str, db: Session = Depends(get_db)):
+    """Clears chat history for a session + document."""
     db.query(ChatMessage).filter(
         ChatMessage.session_id == session_id,
         ChatMessage.collection_name == collection_name,
@@ -198,3 +195,10 @@ def clear_history(session_id: str, collection_name: str, db: Session = Depends(g
     db.commit()
     return {"message": "History cleared"}
 
+
+# ── Run locally ────────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
