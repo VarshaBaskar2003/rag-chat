@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_BASE = "https://rag-chat-thku.onrender.com"
 
 export const uploadPDF = async (file) => {
   const formData = new FormData();
