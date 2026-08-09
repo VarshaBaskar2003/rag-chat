@@ -20,7 +20,36 @@
   padding: 8px 0;
 }
 
-/* ── Document item ── */
+/* Server status messages */
+.doc-list-status {
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  margin-bottom: 8px;
+  animation: pulse 2s infinite;
+}
+
+.doc-list-status--loading {
+  background: #1a1a2e;
+  color: #7c6af7;
+  border: 1px solid #2a2a4a;
+}
+
+.doc-list-status--error {
+  background: #2e1a1a;
+  color: #ff6b6b;
+  border: 1px solid #4a2a2a;
+  animation: none;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+
+/* Document item */
 .doc-item {
   display: flex;
   align-items: center;
@@ -70,7 +99,6 @@
   margin: 2px 0 0 0;
 }
 
-/* ── Three dot menu ── */
 .doc-menu-wrapper {
   position: relative;
   flex-shrink: 0;
@@ -96,7 +124,6 @@
   color: #aaa;
 }
 
-/* ── Dropdown ── */
 .doc-dropdown {
   position: absolute;
   right: 0;
@@ -112,14 +139,8 @@
 }
 
 @keyframes dropdown-appear {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .doc-dropdown__item {
