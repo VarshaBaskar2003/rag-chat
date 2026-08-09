@@ -24,19 +24,12 @@ _groq_client = None
 
 
 def get_embed_model():
-    """
-    Load embedding model only when first needed.
-    Using all-MiniLM-L2-v2 instead of L6 because:
-    - L2 uses ~100MB RAM
-    - L6 uses ~500MB RAM
-    - Render free tier limit is 512MB
-    - L2 is still accurate enough for RAG
-    """
+    """Load embedding model only when first needed."""
     global _embed_model
     if _embed_model is None:
         from sentence_transformers import SentenceTransformer
         print("Loading embedding model...")
-        _embed_model = SentenceTransformer("all-MiniLM-L2-v2")
+        _embed_model = SentenceTransformer("all-MiniLM-L6-v2")
         print("Embedding model loaded.")
     return _embed_model
 
@@ -71,10 +64,10 @@ def filename_to_collection_name(pdf_path: str) -> str:
     e.g. "My Document.pdf" → "my_document_pdf"
     """
     name = os.path.basename(pdf_path)   # get filename only, not full path
-    name = name.replace(".", "_")        # dots to underscore
-    name = name.replace(" ", "_")        # spaces to underscore
-    name = name.replace("-", "_")        # hyphens to underscore
-    name = name.lower()                  # lowercase
+    name = name.replace(".", "_")        # "My Document.pdf" → "My Document_pdf"
+    name = name.replace(" ", "_")        # "My Document_pdf" → "My_Document_pdf"
+    name = name.replace("-", "_")        # handle hyphens too
+    name = name.lower()                  # "My_Document_pdf" → "my_document_pdf"
     return name
 
 
@@ -96,7 +89,7 @@ def extract_text_from_pdf(pdf_path: str) -> list[dict]:
         # Skip blank or image-only pages
         if len(text.strip()) > 50:
             pages.append({
-                "page": page_num + 1,  # humans count from 1 not 0
+                "page": page_num + 1,  # humans count from 1, not 0
                 "text": text
             })
 
@@ -113,7 +106,7 @@ def index_pdf(pdf_path: str):
     PDF → extract text → chunk → embed → store in ChromaDB
 
     Each PDF gets its own persistent collection named after the file.
-    If already indexed, skips re-processing to save time and memory.
+    If already indexed, skips re-processing (saves time and compute).
 
     Returns the ChromaDB collection object.
     """
@@ -121,13 +114,13 @@ def index_pdf(pdf_path: str):
     chroma = get_chroma_client()
     embed = get_embed_model()
 
-    # Get or create collection for this specific PDF
+    # Get or create a collection for this specific PDF
     collection = chroma.get_or_create_collection(
         name=collection_name,
-        metadata={"hnsw:space": "cosine"}  # cosine similarity not L2
+        metadata={"hnsw:space": "cosine"}  # use cosine similarity, not L2
     )
 
-    # Skip if already indexed
+    # Skip if already indexed — no duplicate work
     if collection.count() > 0:
         print(f"'{collection_name}' already indexed ({collection.count()} chunks). Skipping.")
         return collection
@@ -135,7 +128,7 @@ def index_pdf(pdf_path: str):
     # Step 1: Extract text
     pages = extract_text_from_pdf(pdf_path)
 
-    # Step 2: Chunk each page
+    # Step 2: Chunk each page's text
     all_chunks = []
     all_metadatas = []
     all_ids = []
@@ -145,7 +138,7 @@ def index_pdf(pdf_path: str):
         page_chunks = splitter.split_text(page_data["text"])
 
         for chunk_text in page_chunks:
-            # Skip very short chunks — usually noise
+            # Skip very short chunks — they're usually noise
             if len(chunk_text.strip()) < 100:
                 continue
 
@@ -160,11 +153,12 @@ def index_pdf(pdf_path: str):
 
     print(f"Created {len(all_chunks)} chunks from {len(pages)} pages.")
 
-    # Step 3: Embed all chunks in one batch
+    # Step 3: Embed all chunks at once (batch is faster than one by one)
     print("Embedding chunks...")
     embeddings = embed.encode(all_chunks, show_progress_bar=True).tolist()
 
     # Step 4: Store in ChromaDB in batches of 100
+    # (ChromaDB has per-operation size limits)
     batch_size = 100
     for i in range(0, len(all_chunks), batch_size):
         collection.add(
@@ -184,15 +178,15 @@ def generate_hypothetical_answer(question: str) -> str:
     """
     HyDE — Hypothetical Document Embeddings.
 
-    Instead of embedding the raw question, we ask the LLM to generate
-    a fake answer that WOULD appear in a document.
-    That fake answer uses document-like vocabulary → better retrieval.
+    Instead of embedding the raw question (which may not match document vocab),
+    we ask the LLM to generate a fake answer that WOULD appear in a document.
+    That fake answer uses document-like vocabulary and retrieves better chunks.
 
     Example:
       Question: "What are the key ideas?"
-      Hypothetical: "The key ideas include attention mechanisms,
-                     transformer architecture, multi-head attention..."
-      → Matches real document chunks much better than "key ideas" alone
+      Hypothetical: "The key ideas include attention mechanisms, transformer
+                     architecture, multi-head attention, positional encoding..."
+      → This matches real document chunks much better than "key ideas" alone
     """
     groq = get_groq_client()
 
@@ -219,7 +213,7 @@ Hypothetical answer:"""
 def rewrite_query(question: str) -> list[str]:
     """
     Generates 3 different search queries from the original question.
-    More query variants = higher chance of finding the right chunks.
+    More query variants = higher chance of retrieving the right chunks.
 
     Returns: [original_question, variant1, variant2, variant3]
     """
@@ -242,10 +236,10 @@ Question: {question}"""
         queries = json.loads(response.choices[0].message.content)
         return [question] + queries  # original + 3 rewrites
     except:
-        return [question]  # fallback if JSON parsing fails
+        return [question]  # fallback to original if JSON parsing fails
 
 
-# ── Function 5: Full RAG query with HyDE + multi-query ────────────────────────
+# ── Function 5: Full RAG query with HyDE + multi-query ───────────────────────
 
 def rag_query(question: str, collection, n_chunks: int = 5) -> dict:
     """
@@ -255,7 +249,7 @@ def rag_query(question: str, collection, n_chunks: int = 5) -> dict:
     3. Search ChromaDB with all variants
     4. Deduplicate and merge results
     5. Build prompt with retrieved context
-    6. Generate grounded answer with Groq LLM
+    6. Generate answer with Groq LLM
     7. Return answer + source citations
 
     Returns: {"answer": str, "sources": [{"text", "page", "source"}]}
@@ -284,7 +278,7 @@ def rag_query(question: str, collection, n_chunks: int = 5) -> dict:
             query_embeddings=query_vector,
             n_results=3,  # top 3 per query
         )
-        # Deduplicate — same chunk may appear in multiple query results
+        # Deduplicate — same chunk might appear in multiple query results
         for doc, meta, id_ in zip(
             results["documents"][0],
             results["metadatas"][0],
@@ -299,7 +293,7 @@ def rag_query(question: str, collection, n_chunks: int = 5) -> dict:
     all_chunks = all_chunks[:n_chunks]
     all_metas = all_metas[:n_chunks]
 
-    # Step 4: Build context string with citations
+    # Step 4: Build context string with source citations
     context_parts = []
     for i, (doc, meta) in enumerate(zip(all_chunks, all_metas)):
         context_parts.append(
