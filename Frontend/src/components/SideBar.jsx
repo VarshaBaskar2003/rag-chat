@@ -1,8 +1,8 @@
 import FileUpload from "./FileUpload";
 import DocumentList from "./DocumentList";
-import "./Sidebar.css";
+import "./SideBar.css";
 
-export default function Sidebar({ activeCollection, onUploadSuccess, onSelectDocument }) {
+export default function SideBar({ activeCollection, onUploadSuccess, onSelectDocument }) {
   return (
     <div className="sidebar">
       <div className="sidebar__logo">🧠 RAG Chat</div>
